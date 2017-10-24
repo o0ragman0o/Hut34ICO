@@ -2,7 +2,7 @@
 file:   Hut34ICO.sol
 ver:    0.2.0
 author: Darryl Morris
-date:   14-Oct-2017
+date:   20-Oct-2017
 email:  o0ragman0o AT gmail.com
 (c) Darryl Morris 2017
 
@@ -32,29 +32,29 @@ contract Hut34Config
     // ERC20 trading symbol
     string  public constant symbol          = "ENT";
 
-// TODO: Get decimal preference from Hut34
     // ERC20 decimal places
-    uint    public constant decimals        = 6;
+    uint8   public constant decimals        = 18;
 
-    // Total supply in unit ENT
+    // Total supply (* in unit ENT *)
     uint    public constant TOTAL_TOKENS    = 100000000;
 
-// TODO: configure actual address
+// TODO: uncomment and configure actual address
     // Contract owner.
+    // address public constant OWNER           = 0x0;
     address public          OWNER           = msg.sender;
     
-// TODO: uncomment correct date
-    // + new Date("00:00 19 October 2017")/1000
-    // uint    public constant START_DATE      = 1508335200;
+// TODO: uncomment correct date. Set as `constant`
+    // + new Date("00:00 2 November 2017")/1000
+    // uint    public constant START_DATE      = 1509544800;
     uint    public          START_DATE      = now + 1 minutes;
 
 // TODO: configure actual address
     // A Hut34 address to own tokens
-    address public constant HUT32_ADDRESS   = 0x1;
+    address public constant HUT34_ADDRESS   = 0x1;
     
 // TODO: configure actual address
     // A Hut34 address to accept raised funds
-    address public constant HUT32_WALLET    = 0x2;
+    address public constant HUT34_WALLET    = 0x2;
     
     // Percentage of tokens to be vested over 2 years. 20%
     uint    public constant VESTED_PERCENT  = 20;
@@ -66,7 +66,7 @@ contract Hut34Config
 
 // TODO: Hut34 to advise on minimum cap
     // Minimum cap over which the funding is considered successful
-    uint    public constant MIN_CAP         = 2000 * 1 ether;
+    uint    public constant MIN_CAP         = 4000 * 1 ether;
 
 // TODO: Hut34 to advise on KYC threshold    
     // An ether threshold over which a funder must KYC before tokens can be
@@ -77,36 +77,38 @@ contract Hut34Config
     // to tokens
     uint    public constant WHOLESALE_THRESHOLD  = 150 * 1 ether;
     
-    // Number of tokens up for wholesale purchasers
+    // Number of tokens up for wholesale purchasers (* in unit ENT *)
     uint    public constant WHOLESALE_TOKENS = 12500000;
 
+// TODO: Hut34 to advise number of presold tokens
+    // Tokens sold to prefunders (* in unit ENT *)
+    uint    public constant PRESOLD_TOKENS  = 12000000;
+
+// TODO: Hut34 to provide wallet address for bulk transfer of presale tokens.
+    // Address holding presold tokens to be distributed after ICO
+    address public constant PRESOLD_ADDRESS = 0x1;
+    
 // TODO: Hut34 to advise on actual wholesale rate
     // wholesale rate for purchases over WHOLESALE_THRESHOLD ether
-    uint    public constant RATE_WHOLESALE  = 1000; // TODO get actual rate
+    uint    public constant RATE_WHOLESALE  = 900;
 
-    /// Time dependant retail rates
-    // Day 1 : October 19th 00:00 - 23:59	750	0.00133
-    // + new Date("00:00 19 October 2017")/1000
+    // Time dependant retail rates
+    // Day 1
     uint    public constant RATE_DAY_0      = 750;
 
-    // Week 1 : October 20th 00:00 - October 25th 23:59	652	0.00153
-    // + new Date("00:00 20 October 2017")/1000
+    // Week 1
     uint    public constant RATE_DAY_1      = 652;
 
-    // Week 2 : October 26th 00:00 - November 1st 23:59	588	0.00170
-    // + new Date("00:00 26 October 2017")/1000
+    // Week 2
     uint    public constant RATE_DAY_7      = 588;
 
-    // Week 3 : November 2nd 00:00 - November 8th 23:59	545	0.00183
-    // + new Date("00:00 2 November 2017")/1000
+    // Week 3
     uint    public constant RATE_DAY_14     = 545;
 
-    // Week 4 : November 9th 00:00 - November 15th 23:59	517	0.00193
-    // + new Date("00:00 9 November 2017")/1000
+    // Week 4
     uint    public constant RATE_DAY_21     = 517;
 
-    // Week 5 : November 16th 00:00 - November 21st 23:59	500	0.002
-    // + new Date("00:00 16 November 2017")/1000
+    // Week 5
     uint    public constant RATE_DAY_28     = 500;
 }
 
@@ -144,7 +146,7 @@ contract ReentryProtected
     // The reentry protection state mutex.
     bool __reMutex;
 
-    // Sets and resets mutex in order to block functin reentry
+    // Sets and clears mutex in order to block function reentry
     modifier preventReentry() {
         require(!__reMutex);
         __reMutex = true;
@@ -266,7 +268,6 @@ contract ERC20Token
 }
 
 
-
 /*-----------------------------------------------------------------------------\
 
 ## Conditional Entry Table
@@ -276,22 +277,22 @@ Functions must throw on F conditions
 Renetry prevention is on all public mutating functions
 Reentry mutex set in finalizeITO(), externalXfer(), refund()
 
-|function                |<startDate |<endDate  |fundFailed  |fundSucceeded|itoSucceeded
-|------------------------|:---------:|:--------:|:----------:|:-----------:|:---------:|
-|()                      |F          |T         |F           |T            |F          |
-|abort()                 |T          |T         |T           |T            |F          |
-|proxyPurchase()         |F          |T         |F           |T            |F          |
-|finalizeITO()           |F          |F         |F           |T            |T          |
-|refund()                |F          |F         |T           |F            |F          |
-|transfer()              |F          |F         |F           |F            |T          |
-|transferFrom()          |F          |F         |F           |F            |T          |
-|approve()               |F          |F         |F           |F            |T          |
-|clearKyc()              |T          |T         |T           |T            |T          |
-|releaseVested()         |F          |F         |F           |F            |now>release|
-|changeOwner()           |T          |T         |T           |T            |T          |
-|acceptOwnership()       |T          |T         |T           |T            |T          |
-|transferExternalTokens()|T          |T         |T           |T            |T          |
-|destroy()               |F          |F         |!__abortFuse|F            |F          |
+|function                |<startDate |<endDate  |fundFailed  |fundRaised|itoSucceeded
+|------------------------|:---------:|:--------:|:----------:|:--------:|:---------:|
+|()                      |F          |T         |F           |T         |F          |
+|abort()                 |T          |T         |T           |T         |F          |
+|proxyPurchase()         |F          |T         |F           |T         |F          |
+|finalizeITO()           |F          |F         |F           |T         |T          |
+|refund()                |F          |F         |T           |F         |F          |
+|transfer()              |F          |F         |F           |F         |T          |
+|transferFrom()          |F          |F         |F           |F         |T          |
+|approve()               |F          |F         |F           |F         |T          |
+|clearKyc()              |T          |T         |T           |T         |T          |
+|releaseVested()         |F          |F         |F           |F         |now>release|
+|changeOwner()           |T          |T         |T           |T         |T          |
+|acceptOwnership()       |T          |T         |T           |T         |T          |
+|transferExternalTokens()|T          |T         |T           |T         |T          |
+|destroy()               |F          |F         |!__abortFuse|F         |F          |
 
 \*----------------------------------------------------------------------------*/
 
@@ -339,10 +340,10 @@ contract Hut34ICOAbstract
 // Constants
 //
 
-    // The Hut34 vesting psudo-address for transfering and releaseing vested
-    // tokens to and from. The address is UTF8 encoding of the string and can
-    // only be accessed by contract.
-    address public constant HUT32_VEST_ADDR = address(bytes20("Hut34 Vesting"));
+    // The Hut34 vesting 'psudo-address' for transferring and releasing vested
+    // tokens to the Hut34 Wallet. The address is UTF8 encoding of the
+    // string and can only be accessed by the 'releaseVested()' function.
+    address public constant HUT34_VEST_ADDR = address(bytes20("Hut34 Vesting"));
 
 //
 // State Variables
@@ -352,8 +353,8 @@ contract Hut34ICOAbstract
     /// @return the abort state. true == not aborted
     bool public __abortFuse = true;
     
-    /// @dev Sets to true after the fund is swept to the fund wallet, allows token
-    /// transfers and prevents abort()
+    /// @dev Sets to true after the fund is swept to the fund wallet, allows
+    /// token transfers and prevents abort()
     /// @return final success state of ICO
     bool public icoSucceeded;
 
@@ -388,17 +389,25 @@ contract Hut34ICOAbstract
 // Modifiers
 //
 
+    modifier onlyOwner() {
+        require(msg.sender == owner);
+        _;
+    }
+
 //
 // Function Abstracts
 //
 
     /// @return `true` if MIN_FUNDS were raised
-    function fundSuccessful() public view returns (bool);
+    function fundRaised() public view returns (bool);
     
     /// @return `true` if MIN_FUNDS were not raised before endDate or contract 
     /// has been aborted
     function fundFailed() public view returns (bool);
 
+    /// @return The current retail rate for token purchase
+    function currentRate() public view returns (uint);
+    
     /// @param _wei A value of ether in units of wei
     /// @return allTokens_ tokens returnable for the funding amount
     /// @return wholesaleToken_ Number of tokens purchased at wholesale rate
@@ -408,6 +417,7 @@ contract Hut34ICOAbstract
     /// @notice Processes a token purchase for `_addr`
     /// @param _addr An address to purchase tokens
     /// @return Boolean success value
+    /// @dev Requires 120,000 gas
     function proxyPurchase(address _addr) public payable returns (bool);
 
     /// @notice Finalize the ICO and transfer funds
@@ -466,30 +476,24 @@ contract Hut34ICO is
     uint constant TOKEN = uint(10)**decimals; 
 
     // Calculate vested tokens
-    uint public constant VESTED_TOKENS = TOTAL_TOKENS * VESTED_PERCENT / 100;
+    uint public constant VESTED_TOKENS =
+            TOKEN * TOTAL_TOKENS * VESTED_PERCENT / 100;
+    // Hut34 retains 70% of tokens
+    uint public constant RETAINED_TOKENS = TOKEN * TOTAL_TOKENS * 7 / 10;
 
 // TODO: Use correct END_DATE calculation    
     // // Calculate end date
-    // // + new Date("00:00 21 November 2017")/1000
     // uint public constant END_DATE = START_DATE + 35 days;
     uint public END_DATE = START_DATE + 35 minutes;
 
 // TODO: set final commission rate
-    // 2% commission divisor
-    uint public constant COMMISSION_DIV = 50;
+    // Divides `etherRaised` to calculate commision
+    // etherRaise/80 == etherRaised * 1.25% / 100
+    uint public constant COMMISSION_DIV = 80;
 
-// TODO: set commission wallet    
     // Developer commission wallet
-    address public constant COMMISSION_WALLET = 0x3; // TODO
-
-//
-// Modifiers
-//
-
-    modifier onlyOwner() {
-        require(msg.sender == owner);
-        _;
-    }
+    address public constant COMMISSION_WALLET = 
+        0x0065D506E475B5DBD76480bAFa57fe7C41c783af;
 
 //
 // Functions
@@ -501,8 +505,10 @@ contract Hut34ICO is
         // Run sanity checks
         require(TOTAL_TOKENS != 0);
         require(OWNER != 0x0);
-        require(HUT32_ADDRESS != 0x0);
-        require(HUT32_WALLET != 0x0);
+        require(HUT34_ADDRESS != 0x0);
+        require(HUT34_WALLET != 0x0);
+        require(PRESOLD_TOKENS <= WHOLESALE_TOKENS);
+        require(PRESOLD_TOKENS == 0 || PRESOLD_ADDRESS != 0x0);
         require(MIN_CAP != 0);
         require(START_DATE >= now);
         require(bytes(name).length != 0);
@@ -517,9 +523,18 @@ contract Hut34ICO is
         owner = OWNER;
         totalSupply = TOTAL_TOKENS.mul(TOKEN);
         wholesaleLeft = WHOLESALE_TOKENS.mul(TOKEN);
+        uint presold = PRESOLD_TOKENS.mul(TOKEN);
+        wholesaleLeft = wholesaleLeft.sub(presold);
+        // Presale raise is appoximate given it was conducted in Fiat.
+        etherRaised = 1 ether * PRESOLD_TOKENS / RATE_WHOLESALE;
+        
         // Load up total supply in the Hut34 admin address
-        balances[HUT32_ADDRESS] = totalSupply;
-        Transfer(0x0, HUT32_ADDRESS, totalSupply);
+        balances[HUT34_ADDRESS] = totalSupply;
+        Transfer(0x0, HUT34_ADDRESS, totalSupply);
+        // Transfer presold tokens to holding address;
+        balances[HUT34_ADDRESS] = balances[HUT34_ADDRESS].sub(presold);
+        balances[PRESOLD_ADDRESS] = balances[PRESOLD_ADDRESS].add(presold);
+        Transfer(HUT34_ADDRESS, PRESOLD_ADDRESS, presold);
     }
 
     // Default function. Accepts payments during funding period
@@ -544,7 +559,7 @@ contract Hut34ICO is
     }
     
     // Funding succeeds if not aborted, minimum funds are raised before end date
-    function fundSuccessful() public view returns (bool)
+    function fundRaised() public view returns (bool)
     {
         return !fundFailed()
             && etherRaised >= MIN_CAP;
@@ -555,20 +570,43 @@ contract Hut34ICO is
     {
         return 1 ether * wholesaleLeft / RATE_WHOLESALE;
     }
+
+    function currentRate()
+        public
+        view
+        returns (uint)
+    {
+//TODO: uncomment production code. Delete test code         
+        // return
+        //     fundFailed() ? 0 :
+        //     icoSucceeded ? 0 :
+        //     now < START_DATE ? 0 :
+        //     now < START_DATE + 1 days ? RATE_DAY_0 :
+        //     now < START_DATE + 7 days ? RATE_DAY_1 :
+        //     now < START_DATE + 14 days ? RATE_DAY_7 :
+        //     now < START_DATE + 21 days ? RATE_DAY_14 :
+        //     now < START_DATE + 28 days ? RATE_DAY_21 :
+        //     now < END_DATE ? RATE_DAY_28 :
+        //     0;
+        return  fundFailed() ? 0 :
+                icoSucceeded ? 0 :
+                now < START_DATE ? 0 :
+                now < START_DATE + 1 minutes ? RATE_DAY_0 :
+                now < START_DATE + 7 minutes ? RATE_DAY_1 :
+                now < START_DATE + 14 minutes ? RATE_DAY_7 :
+                now < START_DATE + 21 minutes ? RATE_DAY_14 :
+                now < START_DATE + 28 minutes ? RATE_DAY_21 :
+                now < END_DATE ? RATE_DAY_28 :
+                0;
+    }
     
-    // Calculates the retail and wholesale portion of tokens for a given value
+    // Calculates the sale and wholesale portion of tokens for a given value
     // of wei at the time of calling.
     function ethToTokens(uint _wei)
         public
         view
         returns (uint allTokens_, uint wholesaleTokens_)
     {
-        if (fundFailed() || icoSucceeded
-                || now < START_DATE || now >= END_DATE) {
-            // ICO not accepting funds
-            return;
-        }
-
         // Get wholesale portion of ether and tokens
         uint wsValueLeft = 1 ether * wholesaleLeft / RATE_WHOLESALE;
         uint wholesaleSpend = 
@@ -588,19 +626,13 @@ contract Hut34ICO is
         _wei = _wei.sub(wholesaleSpend);
 
         // Get retail rate        
-        uint retailRate =
-            now < START_DATE + 1 minutes ? RATE_DAY_0 :
-            now < START_DATE + 7 minutes ? RATE_DAY_1 :
-            now < START_DATE + 14 minutes ? RATE_DAY_7 :
-            now < START_DATE + 21 minutes ? RATE_DAY_14 :
-            now < START_DATE + 28 minutes ? RATE_DAY_21 :
-            RATE_DAY_28;
+        uint saleRate = currentRate();
 
         allTokens_ = _wei
-            .mul(retailRate)
-            .mul(TOKEN)
-            .div(1 ether)
-            .add(wholesaleTokens_);
+                .mul(saleRate)
+                .mul(TOKEN)
+                .div(1 ether)
+                .add(wholesaleTokens_);
     }
 
 //
@@ -617,7 +649,9 @@ contract Hut34ICO is
         returns (bool)
     {
         require(!icoSucceeded);
-        require(msg.sender == owner || now > END_DATE  + 7 days);
+//TODO: uncomment production code. Delete test code         
+        // require(msg.sender == owner || now > END_DATE  + 7 days);
+        require(msg.sender == owner || now > END_DATE  + 7 minutes);
         delete __abortFuse;
         return true;
     }
@@ -642,23 +676,23 @@ contract Hut34ICO is
         uint wholesaleTokens;
 
         (tokens, wholesaleTokens) = ethToTokens(msg.value);
-        
+
         // Block any failed token creation
         require(tokens > 0);
 
+        // Prevent over subscribing 
+        require(balances[HUT34_ADDRESS] - tokens >= RETAINED_TOKENS);
+
+        // Adjust wholesale tokens left for sale
         if (wholesaleTokens != 0) {
-            // Adjust wholesale tokens left for sale
             wholesaleLeft = wholesaleLeft.sub(wholesaleTokens);
         }
         
         // transfer tokens from fund wallet
-        balances[HUT32_ADDRESS] = balances[HUT32_ADDRESS].sub(tokens);
+        balances[HUT34_ADDRESS] = balances[HUT34_ADDRESS].sub(tokens);
         balances[_addr] = balances[_addr].add(tokens);
-        Transfer(HUT32_ADDRESS, _addr, tokens);
+        Transfer(HUT34_ADDRESS, _addr, tokens);
 
-        // Check Hut34 still retains 70% of tokens
-        require(uint(10).mul(balances[HUT32_ADDRESS]).div(totalSupply) >= 7);
-        
         // Update funds raised
         etherRaised = etherRaised.add(msg.value);
 
@@ -674,36 +708,43 @@ contract Hut34ICO is
         return true;
     }
     
-    // Owner can sweep a successful funding to the fundWallet
-    // Contract can be aborted up until this action.
+    // Owner can sweep a successful funding to the fundWallet.
+    // Can be called repeatedly to recover errant ether which may have been
+    // `selfdestructed` to the contract
+    // Contract can be aborted up until this returns `true`
     function finalizeICO()
         public
         onlyOwner
         preventReentry()
         returns (bool)
     {
-        require(fundSuccessful());
+        // Must have reached minimum cap
+        require(fundRaised());
+        
+        // Lock away vested tokens
+        if(!icoSucceeded) {
+            // transfer vested tokens from fund wallet
+            uint vested = VESTED_TOKENS;
+            balances[HUT34_ADDRESS] = balances[HUT34_ADDRESS].sub(vested);
+            balances[HUT34_VEST_ADDR] = balances[HUT34_VEST_ADDR].add(vested);
+            Transfer(HUT34_ADDRESS, HUT34_VEST_ADDR, vested);
+            nextReleaseDate = now + VESTING_PERIOD;
+        }
 
+        // Set success flag;
         icoSucceeded = true;
         
-        // transfer vested tokens from fund wallet
-        uint vested = VESTED_TOKENS * TOKEN;
-        balances[HUT32_ADDRESS] = balances[HUT32_ADDRESS].sub(vested);
-        balances[HUT32_VEST_ADDR] = balances[HUT32_VEST_ADDR].add(vested);
-        Transfer(HUT32_ADDRESS, HUT32_VEST_ADDR, vested);
-        nextReleaseDate = now + VESTING_PERIOD;
-
         // Transfer % Developer commission
-        Withdrawal(owner, COMMISSION_WALLET, this.balance.div(COMMISSION_DIV));
-        COMMISSION_WALLET.transfer(this.balance.div(COMMISSION_DIV));
+        uint devCommission = calcCommission();
+        Withdrawal(this, COMMISSION_WALLET, devCommission);
+        COMMISSION_WALLET.transfer(devCommission);
 
         // Remaining % to the fund wallet
-        Withdrawal(owner, HUT32_WALLET, this.balance);
-        HUT32_WALLET.transfer(this.balance);
+        Withdrawal(owner, HUT34_WALLET, this.balance);
+        HUT34_WALLET.transfer(this.balance);
         return true;
     }
-    
-    
+
     function clearKyc(address[] _addrs)
         public
         noReentry
@@ -726,7 +767,7 @@ contract Hut34ICO is
         require(now > nextReleaseDate);
         VestingReleased(nextReleaseDate);
         nextReleaseDate = nextReleaseDate.add(VESTING_PERIOD);
-        return xfer(HUT32_VEST_ADDR, HUT32_WALLET, VESTED_TOKENS / 4);
+        return xfer(HUT34_VEST_ADDR, HUT34_WALLET, VESTED_TOKENS / 4);
     }
 
     // Direct refund to caller
@@ -759,9 +800,9 @@ contract Hut34ICO is
     
             // Return tokens
             // transfer tokens from fund wallet
-            balances[HUT32_ADDRESS] = balances[HUT32_ADDRESS].add(tokens);
+            balances[HUT34_ADDRESS] = balances[HUT34_ADDRESS].add(tokens);
             delete(balances[addr]);
-            Transfer(addr, HUT32_ADDRESS, tokens);
+            Transfer(addr, HUT34_ADDRESS, tokens);
     
             delete etherContributed[addr];
     
@@ -775,9 +816,23 @@ contract Hut34ICO is
     }
 
 //
-// ERC20 overloaded functions
+// ERC20 additional and overloaded functions
 //
 
+    // Allows a sender to transfer tokens to an array of recipients
+    function transferToMany(address[] _addrs, uint[] _amounts)
+        public
+        noReentry
+        returns (bool)
+    {
+        require(_addrs.length == _amounts.length);
+        uint len = _addrs.length;
+        for(uint i = 0; i < len; i++) {
+            xfer(msg.sender, _addrs[i], _amounts[i]);
+        }
+        return true;
+    }
+    
     // Overload to check ICO success and KYC flags.
     function xfer(address _from, address _to, uint _amount)
         internal
@@ -838,7 +893,7 @@ contract Hut34ICO is
         onlyOwner
     {
         require(!__abortFuse);
-        require(refunded == etherRaised);
+        require(refunded == (etherRaised - WHOLESALE_TOKENS / RATE_WHOLESALE));
         selfdestruct(owner);
     }
     
@@ -851,5 +906,17 @@ contract Hut34ICO is
     {
         require(ERC20Token(_kAddr).transfer(_to, _amount));
         return true;
+    }
+    
+    // Calculate commission on prefunded and raised ether.
+    function calcCommission()
+        internal
+        view
+        returns(uint)
+    {
+        // Note There is a chance this number can be larger than the ICO raise
+        // because the presale funds are being kept as fiat.
+        uint totalRaise = this.balance + PRESOLD_TOKENS / RATE_WHOLESALE;
+        return totalRaise.div(COMMISSION_DIV);
     }
 }
