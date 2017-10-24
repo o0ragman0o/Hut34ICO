@@ -2,8 +2,8 @@
 
 Escrowing ICO/ERC20 contract for Hut34
 
-A collated contract set for the receipt and escrowing of funds for purchase,
-production and allocation of 'Entropy (ENT)' ERC20 tokens as specified by Hut34.
+A collated contract set for the receipt and escrowing of funds for production,
+purchase, and allocation of 'Entropy (ENT)' ERC20 tokens as specified by Hut34.
 
 Web presence: 
 
@@ -30,31 +30,37 @@ complete Hut34ICO contract implementation.
 ### Overview
 
 The purpose of an Ethereum ICO contract is to accept funds and attribute tokens
-to the funder according to some relatively calculated value. Many ICO models have
-been tried in the blockchain industry which have presented diverse properties
-and behaviours.
+to the funder according to some relatively calculated value in a trusted manner.
 
-The Hut34ICO encodes an *escrowing* feature in which all funds raised are
-maintained in the contract until the owner successfully calls `finalizeICO()`.
-If that function is not called successfully within 7 days of the ICO's end date,
-any account may call the `abort()` function which allows funders to call `refund()` and
-recover their ether.
+The Hut34ICO follows a prefunding round with prefunds and pre-sold tokens being
+published in the contract and used in calculations of minium cap required.
 
-The Hut34 ICO contract also witholds and releases vested tokens according to the
+The Hut34ICO encodes an *escrowing* feature in which all funds raised in the ICO
+round are maintained in the contract until the owner successfully calls
+`finalizeICO()`. If that function is not called successfully within 14 days of
+the ICO's end date, any account may call the `abort()` function which allows
+funders to call `refund()` and recover their ether by calling `refund()`.
+
+All purchsed token transfers are blocked until the ICO is finalized.
+
+The Hut34 ICO contract witholds and releases vested tokens according to the
 whitepaper specifications.
 
 ### Features and Behaviours
-* Holds fixed supply of tokens
-* `HUT34_WALLET` is initiated with balance of `totalSupply`
-* Accepts purchases from `START_DATE` until `END_DATE` or `icoSucceeded == true`
+
+* Holds a fixed supply of 100,000,000 tokens
+* 20% of tokens are transferred to `HUT43_VEST_ADDR` vesting pseudo-address
+* Vested tokens are released back to Hut34 address every 6 months for two years
+* `HUT34_ADDRESS` is initiated with balance of `totalSupply`
+* Accepts purchases from `START_DATE` until `END_DATE` or `icoSucceeded == true` or Hut34 tokens are at 50% of supply
 * Purchase by call to default function
 * Purchase by call to `proxyPurchase(address)` providing an address
-* Purchased tokens are transferred from `HUT34_ADDRESS` to purchaser
-* Token transfers are frozen until ICO is successful
-* Token wholesale rate for transaction values greater than `WHOLESALE_THRESHOLD`
-* Rejects wholesale purchases if tokens would be in excess of `wholesaleLeft` 
+* Purchased tokens are transferred from `HUT34_ADDRESS` to purchaser address
+* Purchased token transfers are frozen until ICO is successful
 * Time dependant Token retail rates
-* Rejects retail and wholesale transactions that would reduce `HUT34_ADDRESS` balance to less than 70% of `totalSupply`
+* Token wholesale rate calculated for transaction values greater than `WHOLESALE_THRESHOLD`
+* Wholesale purchases exceeding `wholesaleLeft` are partially or totally calculated at retail rate 
+* Rejects transactions that would reduce `HUT34_ADDRESS` balance to less than 50% of `totalSupply`
 * Sets KYC flag on addresses with purchase values in excess of `KYC_THRESHOLD`
 * KYC flag must be cleared by owner calling `clearKyc(address[])` before holder can transfer tokens.
 * Holds funds until 'finalizeICO()' is called successfully
@@ -64,17 +70,17 @@ The following happens upon a successful call to `finalizeICO`:
 
 * Developer commission is sent to `COMMISSION_WALLET` 
 * Remaining funds are sent to `HUT34_WALLET` 
-* 20% of `totalSupply` is transferred to `HUT43_VEST_ADDR` pseudo-address
-* 25% of vested tokens can be released back to `HUT34_ADDRESS` once every 6 months
 * `icoSucceeded == true`
+* The vesting release date is set to now + 6 months
 * Tokens which are not KYC flagged can be transferred
+* Hut34 must clear KYC flags for KYC'ed addresses after documents have been provided
 * `releaseVest()` can be called by anyone every 6 months after `icoSucceeded == true`
 
 Aborting and Refunding
 
 * `abort()` will cause `fundFailed() == true`
 * Owner can call `abort()` any time before before `finalizeICO()` returns `true`
-* Anyone can call `abort()` from 7 days after `END_DATE` if `icoSucceeded == false`
+* Anyone can call `abort()` from 14 days after `END_DATE` if `icoSucceeded == false`
 * `refund()` and `refundFor(address[])` may be called by anyone if `fundFailed() == true`
 * owner may call `destroy()` to `sefldestruct` the contract after `refunded == etherRaised`
 
@@ -82,8 +88,8 @@ Aborting and Refunding
 `fundFailed()` will return `true` on the following conditions:
 
 * `abort()` is called by the owner any time before `icoSucceeded` is true
-* `etherRaised < MIN_CAP` at `END_DATE`
-* `abort()` is called by anyone 7 days after `END_DATE`
+* `etherRaised < MIN_CAP` after `END_DATE`
+* `abort()` is called by anyone 14 days after `END_DATE`
 
 #### ICO Success conditions
 `finalizeICO()` will succeed on the conditions:
@@ -108,8 +114,8 @@ the developers commision to the developers wallet, transfer the remaining to the
 
 ### Deployment
 
-Gas requirment: < 2,000,000
-Contract size: < 8kb
+Gas requirment: <  2300000
+Contract size: < 9kb
 Constructor arguments: none. All Hut34 parameters are precompiled in `Hut34Config`.
 
 ### Parameters
@@ -124,34 +130,34 @@ Parameters are:
 * string name: "Hut34 Entropy Token"
 * string symbol:  "ENT"
 * uint TOTAL_TOKENS: 100,000,000
-* uint8 decimals: TBA
+* uint8 decimals: 18
 
 **ICO Parameters**
 
-* address OWNER: TBA
-* address HUT34_ADDRESS: TBA
-* address HUT34_WALLET: TBA
-* uint START_DATE: 1508335200 *"00:00 19 October 2017"*
-* uint END_DATE: START_DATE + 35 days (calculated in constructor)
-* uint MIN_CAP: 4000 ether (to be confirmed)
-* uint VESTED_PERCENT: 20%
-* uint VESTING_PERIOD: 26 weeks
+* `address OWNER: 0xdA3780Cff2aE3a59ae16eC1734DEec77a7fd8db2`
+* `address HUT34_ADDRESS: 0x048Fcbf47a382fB26ADdF6e0Cb7B163D540e2E36`
+* `address HUT34_WALLET: TBA`
+* `uint START_DATE: 1509580800` (00:00 2 November 2017 UTC)
+* `uint END_DATE: START_DATE + 35 days` (calculated in constructor)
+* `uint MIN_CAP: 3000 ether`
+* `uint VESTED_PERCENT: 20%`
+* `uint VESTING_PERIOD: 26 weeks`
 
 **Token/Ether Purchase Rates**
 
-* uint RATE_DAY_0: 750
-* uint RATE_DAY_1: 652
-* uint RATE_DAY_7: 588
-* uint RATE_DAY_14: 545
-* uint RATE_DAY_21: 517
-* uint RATE_DAY_28: 500
+* `uint RATE_DAY_0: 750`
+* `uint RATE_DAY_1: 652`
+* `uint RATE_DAY_7: 588`
+* `uint RATE_DAY_14: 545`
+* `uint RATE_DAY_21: 517`
+* `uint RATE_DAY_28: 500`
 
 **KYC and Wholesale** (To discuss with Hut34)
 
-* uint KYC_THRESHOLD = 40 ether (< $15000 USD)
-* uint WHOLESALE_THRESHOLD = 150 ether
-* uint WHOLESALE_TOKENS = 12,500,000 ENT
-* uint RATE_WHOLESALE = 1000 ENT/ETH
+* `uint KYC_THRESHOLD = 150 ether`
+* `uint WHOLESALE_THRESHOLD = 150 ether`
+* `uint WHOLESALE_TOKENS = 12,500,000 ENT`
+* `uint RATE_WHOLESALE = 1000 ENT/ETH`
 
 ### Contract Config
 ```
@@ -163,47 +169,37 @@ contract Hut34Config
     // ERC20 trading symbol
     string  public constant symbol          = "ENT";
 
-// TODO: Get decimal preference from Hut34
     // ERC20 decimal places
-    uint8   public constant decimals        = 6;
+    uint8   public constant decimals        = 18;
 
     // Total supply (* in unit ENT *)
     uint    public constant TOTAL_TOKENS    = 100000000;
 
-// TODO: uncomment and configure actual address
     // Contract owner.
-    // address public constant OWNER           = 0x0;
-    address public          OWNER           = msg.sender;
-    
-// TODO: uncomment correct date. Set as `constant`
-    // + new Date("00:00 19 October 2017")/1000
-    // uint    public constant START_DATE      = 1508335200;
-    uint    public          START_DATE      = now + 1 minutes;
+    address public constant OWNER           = 0xdA3780Cff2aE3a59ae16eC1734DEec77a7fd8db2;
 
-// TODO: configure actual address
+    // + new Date("00:00 2 November 2017 utc")/1000
+    uint    public constant START_DATE      = 1509580800;
+
     // A Hut34 address to own tokens
-    address public constant HUT34_ADDRESS   = 0x1;
+    address public constant HUT34_ADDRESS   = 0x048Fcbf47a382fB26ADdF6e0Cb7B163D540e2E36;
     
-// TODO: configure actual address
+// TODO: configure actual address. To use Gnosis Multisig
     // A Hut34 address to accept raised funds
     address public constant HUT34_WALLET    = 0x2;
     
     // Percentage of tokens to be vested over 2 years. 20%
     uint    public constant VESTED_PERCENT  = 20;
 
-// TODO: uncomment correct period    
     // Vesting period
-    // uint    public constant VESTING_PERIOD  = 26 weeks;
-    uint    public constant VESTING_PERIOD  = 2 minutes;
+    uint    public constant VESTING_PERIOD  = 26 weeks;
 
-// TODO: Hut34 to advise on minimum cap
     // Minimum cap over which the funding is considered successful
-    uint    public constant MIN_CAP         = 4000 * 1 ether;
+    uint    public constant MIN_CAP         = 3000 * 1 ether;
 
-// TODO: Hut34 to advise on KYC threshold    
     // An ether threshold over which a funder must KYC before tokens can be
     // transferred (unit of ether);
-    uint    public constant KYC_THRESHOLD   = 40 * 1 ether;
+    uint    public constant KYC_THRESHOLD   = 150 * 1 ether;
 
     // A minimum amount of ether funding before the concierge rate is applied
     // to tokens
@@ -212,39 +208,70 @@ contract Hut34Config
     // Number of tokens up for wholesale purchasers (* in unit ENT *)
     uint    public constant WHOLESALE_TOKENS = 12500000;
 
-// TODO: Hut34 to advise on actual wholesale rate
+// TODO: Hut34 to advise number of presold tokens
+    // Tokens sold to prefunders (* in unit ENT *)
+    uint    public constant PRESOLD_TOKENS  = 0;
+    
+// TODO: Hut34 to provide presale ether raised.
+    // Presale ether is estimateed from fiat raised prior to ICO at the ETH/AUD
+    // rate at the time of contract deployment
+    uint    public constant PRESALE_ETH_RAISE = 0 * 1 ether;
+    
+    // Address holding presold tokens to be distributed after ICO
+    address public constant PRESOLD_ADDRESS = 0x6BF708eF2C1FDce3603c04CE9547AA6E134093b6;
+    
     // wholesale rate for purchases over WHOLESALE_THRESHOLD ether
     uint    public constant RATE_WHOLESALE  = 1000;
 
-    /// Time dependant retail rates
-    // Day 1 : October 19th 00:00 - 23:59	750	0.00133
-    // + new Date("00:00 19 October 2017")/1000
+    // Time dependant retail rates
+    // First Day
     uint    public constant RATE_DAY_0      = 750;
 
-    // Week 1 : October 20th 00:00 - October 25th 23:59	652	0.00153
-    // + new Date("00:00 20 October 2017")/1000
+    // First Week (The six days after first day)
     uint    public constant RATE_DAY_1      = 652;
 
-    // Week 2 : October 26th 00:00 - November 1st 23:59	588	0.00170
-    // + new Date("00:00 26 October 2017")/1000
+    // Second Week
     uint    public constant RATE_DAY_7      = 588;
 
-    // Week 3 : November 2nd 00:00 - November 8th 23:59	545	0.00183
-    // + new Date("00:00 2 November 2017")/1000
+    // Third Week
     uint    public constant RATE_DAY_14     = 545;
 
-    // Week 4 : November 9th 00:00 - November 15th 23:59	517	0.00193
-    // + new Date("00:00 9 November 2017")/1000
+    // Fourth Week
     uint    public constant RATE_DAY_21     = 517;
 
-    // Week 5 : November 16th 00:00 - November 21st 23:59	500	0.002
-    // + new Date("00:00 16 November 2017")/1000
+    // Fifth Week
     uint    public constant RATE_DAY_28     = 500;
 }
-
 ```
 ### Hut34ICOAbstract
+
+#### Conditional Entry Table
+
+Functions must throw on F conditions
+
+Renetry prevention is on all public mutating functions
+Reentry mutex set in finalizeICO(), refundFor()
 ```
+|function                |<startDate |<endDate  |fundFailed  |fundRaised|icoSucceeded
+|------------------------|:---------:|:--------:|:----------:|:--------:|:---------:|
+|()                      |F          |T         |F           |T         |F          |
+|abort()                 |T          |T         |T           |T         |F          |
+|proxyPurchase()         |F          |T         |F           |T         |F          |
+|finalizeICO()           |F          |F         |F           |T         |T          |
+|refund()                |F          |F         |T           |F         |F          |
+|refundFor()             |F          |F         |T           |F         |F          |
+|transfer()              |F          |F         |F           |F         |T          |
+|transferFrom()          |F          |F         |F           |F         |T          |
+|transferToMany()        |F          |F         |F           |F         |T          |
+|approve()               |F          |F         |F           |F         |T          |
+|clearKyc()              |T          |T         |T           |T         |T          |
+|releaseVested()         |F          |F         |F           |F         |now>release|
+|changeOwner()           |T          |T         |T           |T         |T          |
+|acceptOwnership()       |T          |T         |T           |T         |T          |
+|transferExternalTokens()|T          |T         |T           |T         |T          |
+|destroy()               |F          |F         |!__abortFuse|F         |F          |
+
+
 contract Hut34ICOAbstract
 {
     /// @dev Logged upon receiving a deposit
@@ -253,10 +280,10 @@ contract Hut34ICOAbstract
     event Deposit(address indexed _from, uint _value);
     
     /// @dev Logged upon a withdrawal
-    /// @param _by the address of the withdrawer
+    /// @param _from the address of the withdrawer
     /// @param _to Address to which value was sent
     /// @param _value The value in ether which was withdrawn
-    event Withdrawal(address indexed _by, address indexed _to, uint _value);
+    event Withdrawal(address indexed _from, address indexed _to, uint _value);
 
     /// @dev Logged upon refund
     /// @param _to Address to which value was sent
@@ -292,6 +319,7 @@ contract Hut34ICOAbstract
     // The Hut34 vesting 'psudo-address' for transferring and releasing vested
     // tokens to the Hut34 Wallet. The address is UTF8 encoding of the
     // string and can only be accessed by the 'releaseVested()' function.
+    // `0x48757433342056657374696e6700000000000000`
     address public constant HUT34_VEST_ADDR = address(bytes20("Hut34 Vesting"));
 
 //
@@ -366,7 +394,7 @@ contract Hut34ICOAbstract
     /// @notice Processes a token purchase for `_addr`
     /// @param _addr An address to purchase tokens
     /// @return Boolean success value
-    /// @dev Requires 120,000 gas
+    /// @dev Requires 150,000 gas
     function proxyPurchase(address _addr) public payable returns (bool);
 
     /// @notice Finalize the ICO and transfer funds
@@ -377,11 +405,17 @@ contract Hut34ICOAbstract
     /// transfers
     function clearKyc(address[] _addrs) public returns (bool);
     
+    /// @notice Make bulk transfer of tokens to many addresses
+    /// @param _addrs An array of recipient addresses
+    /// @param _amounts An array of amounts to transfer to respective addresses
+    /// @return Boolean success value
+    function transferToMany(address[] _addrs, uint[] _amounts)
+
     /// @notice Release vested tokens after a maturity date
     /// @return Boolean success value
     function releaseVested() public returns (bool);
 
-    /// @notice Claim refund on failed ITO
+    /// @notice Claim refund on failed ICO
     /// @return Boolean success value
     function refund() public returns (bool);
     
@@ -401,4 +435,5 @@ contract Hut34ICOAbstract
     function transferExternalToken(address _kAddr, address _to, uint _amount)
         public returns (bool);
 }
+
 ```
