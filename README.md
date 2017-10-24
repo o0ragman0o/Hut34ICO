@@ -136,12 +136,18 @@ Parameters are:
 
 * `address OWNER: 0xdA3780Cff2aE3a59ae16eC1734DEec77a7fd8db2`
 * `address HUT34_ADDRESS: 0x048Fcbf47a382fB26ADdF6e0Cb7B163D540e2E36`
-* `address HUT34_WALLET: TBA`
+* `address HUT34_WALLET: TBD`
+* `address PRESOLD_ADDRESS: 0x6BF708eF2C1FDce3603c04CE9547AA6E134093b6`
+* `address HUT34_VEST_ADDR: 0x48757433342056657374696e6700000000000000`
+    NB: Is a pseudo-address cast from the string "Hut34 Vesting"
+
 * `uint START_DATE: 1509580800` (00:00 2 November 2017 UTC)
 * `uint END_DATE: START_DATE + 35 days` (calculated in constructor)
 * `uint MIN_CAP: 3000 ether`
 * `uint VESTED_PERCENT: 20%`
 * `uint VESTING_PERIOD: 26 weeks`
+* `uint PRESOLD_TOKENS: TBD`
+* `uint PRESALE_ETH_RAISE: TBD`
 
 **Token/Ether Purchase Rates**
 
