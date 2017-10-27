@@ -1,6 +1,6 @@
 /*
 file:   Hut34ICO.sol
-ver:    0.2.3_RC
+ver:    0.2.4_deploy
 author: Darryl Morris
 date:   27-Oct-2017
 email:  o0ragman0o AT gmail.com
@@ -19,8 +19,9 @@ See MIT Licence for further details.
 
 Release Notes
 -------------
-* Fixed improper use of delete
-* Release Candidate
+* Added `event Aborted()`
+* correct `wholesaleLeft` magnitude bug
+* All tests passed
 
 Dedications
 -------------
@@ -328,6 +329,9 @@ contract Hut34ICOAbstract
     /// @param _releaseDate The official release date (even if released at
     /// later date)
     event VestingReleased(uint _releaseDate);
+    
+    /// @dev Logged if the contract is aborted
+    event Aborted();
 
 //
 // Constants
@@ -575,7 +579,7 @@ contract Hut34ICO is
     // Returns wholesale value in wei
     function wholeSaleValueLeft() public view returns (uint)
     {
-        return 1 ether * wholesaleLeft / RATE_WHOLESALE;
+        return wholesaleLeft / RATE_WHOLESALE;
     }
 
     function currentRate()
@@ -604,7 +608,7 @@ contract Hut34ICO is
         returns (uint allTokens_, uint wholesaleTokens_)
     {
         // Get wholesale portion of ether and tokens
-        uint wsValueLeft = 1 ether * wholesaleLeft / RATE_WHOLESALE;
+        uint wsValueLeft = wholeSaleValueLeft();
         uint wholesaleSpend = 
                 fundFailed() ? 0 :
                 icoSucceeded ? 0 :
@@ -651,6 +655,7 @@ contract Hut34ICO is
         require(!icoSucceeded);
         require(msg.sender == owner || now > END_DATE  + 14 days);
         delete __abortFuse;
+        Aborted();
         return true;
     }
     
