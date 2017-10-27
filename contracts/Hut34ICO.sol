@@ -21,6 +21,11 @@ Release Notes
 -------------
 * Fixed improper use of delete
 * Release Candidate
+
+Dedications
+-------------
+* with love to Isabella and pea from your dad
+* xx to edie, robin, william and charlotte x
 */
 
 
