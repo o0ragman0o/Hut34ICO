@@ -1,6 +1,6 @@
 /*
 file:   Hut34ICO.sol
-ver:    0.2.2
+ver:    0.2.3_RC
 author: Darryl Morris
 date:   27-Oct-2017
 email:  o0ragman0o AT gmail.com
@@ -19,19 +19,18 @@ See MIT Licence for further details.
 
 Release Notes
 -------------
-* Deployment parameters audited and locked in
-* Fixed wholesale funding bug that allowed wholesale funds before START_DATE
-* Firmed requirments to proxyPurchase()
-
+* Fixed improper use of delete
+* Release Candidate
 */
 
 
 pragma solidity ^0.4.17;
 
+// Audited 27 October 2017 by Darryl Morris, Peter Godbolt
 contract Hut34Config
 {
     // ERC20 token name
-    string  public constant name            = "Hut34 Entropy Token";
+    string  public constant name            = "Hut34 Entropy";
     
     // ERC20 trading symbol
     string  public constant symbol          = "ENT";
@@ -329,10 +328,10 @@ contract Hut34ICOAbstract
 // Constants
 //
 
-    // The Hut34 vesting 'psudo-address' for transferring and releasing vested
-    // tokens to the Hut34 Wallet. The address is UTF8 encoding of the
-    // string and can only be accessed by the 'releaseVested()' function.
-    // `0x48757433342056657374696e6700000000000000`
+    /// @dev The Hut34 vesting 'psudo-address' for transferring and releasing
+    /// vested tokens to the Hut34 Wallet. The address is UTF8 encoding of the
+    /// string and can only be accessed by the 'releaseVested()' function.
+    /// @return `0x48757433342056657374696e6700000000000000`
     address public constant HUT34_VEST_ADDR = address(bytes20("Hut34 Vesting"));
 
 //
@@ -391,7 +390,7 @@ contract Hut34ICOAbstract
     /// @return `true` if MIN_FUNDS were raised
     function fundRaised() public view returns (bool);
     
-    /// @return `true` if MIN_FUNDS were not raised before endDate or contract 
+    /// @return `true` if MIN_FUNDS were not raised before END_DATE or contract 
     /// has been aborted
     function fundFailed() public view returns (bool);
 
@@ -399,7 +398,7 @@ contract Hut34ICOAbstract
     function currentRate() public view returns (uint);
     
     /// @param _wei A value of ether in units of wei
-    /// @return allTokens_ tokens returnable for the funding amount
+    /// @return allTokens_ returnable tokens for the funding amount
     /// @return wholesaleToken_ Number of tokens purchased at wholesale rate
     function ethToTokens(uint _wei)
         public view returns (uint allTokens_, uint wholesaleTokens_);
@@ -407,7 +406,7 @@ contract Hut34ICOAbstract
     /// @notice Processes a token purchase for `_addr`
     /// @param _addr An address to purchase tokens
     /// @return Boolean success value
-    /// @dev Requires 150,000 gas
+    /// @dev Requires <150,000 gas
     function proxyPurchase(address _addr) public payable returns (bool);
 
     /// @notice Finalize the ICO and transfer funds
@@ -792,13 +791,14 @@ contract Hut34ICO is
                 // Return tokens
                 // transfer tokens from fund wallet
                 balances[HUT34_RETAIN] = balances[HUT34_RETAIN].add(tokens);
-                delete(balances[addr]);
+                delete balances[addr];
                 Transfer(addr, HUT34_RETAIN, tokens);
             }
     
             if (value > 0) {
                 // Refund ether contribution
                 delete etherContributed[addr];
+                delete mustKyc[addr];
                 refunded = refunded.add(value);
                 Withdrawal(this, addr, value);
                 addr.transfer(value);

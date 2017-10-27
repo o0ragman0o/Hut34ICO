@@ -167,10 +167,11 @@ Parameters are:
 
 ### Contract Config
 ```
+// Audited 27 October 2017 by Darryl Morris, Peter Godbolt
 contract Hut34Config
 {
     // ERC20 token name
-    string  public constant name            = "Hut34 Entropy Token";
+    string  public constant name            = "Hut34 Entropy";
     
     // ERC20 trading symbol
     string  public constant symbol          = "ENT";
