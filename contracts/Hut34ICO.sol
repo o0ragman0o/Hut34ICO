@@ -22,7 +22,7 @@ Release Notes
 */
 
 
-pragma solidity ^0.4.13;
+pragma solidity ^0.4.17;
 
 contract Hut34Config
 {
@@ -38,18 +38,18 @@ contract Hut34Config
     // Total supply (* in unit ENT *)
     uint    public constant TOTAL_TOKENS    = 100000000;
 
-    // Contract owner.
+    // Contract owner at time of deployment.
     address public constant OWNER           = 0xdA3780Cff2aE3a59ae16eC1734DEec77a7fd8db2;
 
     // + new Date("00:00 2 November 2017 utc")/1000
     uint    public constant START_DATE      = 1509580800;
 
     // A Hut34 address to own tokens
-    address public constant HUT34_ADDRESS   = 0x048Fcbf47a382fB26ADdF6e0Cb7B163D540e2E36;
+    address public constant HUT34_RETAIN    = 0x3135F4acA3C1Ad4758981500f8dB20EbDc5A1caB;
     
 // TODO: configure actual address. To use Gnosis Multisig
     // A Hut34 address to accept raised funds
-    address public constant HUT34_WALLET    = 0x2;
+    address public constant HUT34_WALLET    = 0xA70d04dC4a64960c40CD2ED2CDE36D76CA4EDFaB;
     
     // Percentage of tokens to be vested over 2 years. 20%
     uint    public constant VESTED_PERCENT  = 20;
@@ -319,13 +319,10 @@ contract Hut34ICOAbstract
     event ChangeOwnerTo(address indexed _to);
     
     /// @dev Logged when a funder exceeds the KYC limit
-    /// @param _addr The address that must clear KYC before tokens are unlocked
-    event MustKyc(address indexed _addr);
-    
-    /// @dev Logged when a KYC flag is cleared against an address
-    /// @param _addr The addres which has had KYC clearance
-    event ClearedKyc(address indexed _addr);
-    
+    /// @param _addr Address to set or clear KYC flag
+    /// @param _kyc A boolean flag
+    event Kyc(address indexed _addr, bool _kyc);
+
     /// @dev Logged when vested tokens are released back to HUT32_WALLET
     /// @param _releaseDate The official release date (even if released at
     /// later date)
@@ -429,6 +426,7 @@ contract Hut34ICOAbstract
     /// @param _amounts An array of amounts to transfer to respective addresses
     /// @return Boolean success value
     function transferToMany(address[] _addrs, uint[] _amounts)
+        public returns (bool);
 
     /// @notice Release vested tokens after a maturity date
     /// @return Boolean success value
@@ -479,7 +477,7 @@ contract Hut34ICO is
 
     // Calculate vested tokens
     uint public constant VESTED_TOKENS =
-            TOKEN * TOTAL_TOKENS * VESTED_PERCENT / 100;
+            TOTAL_TOKENS * TOKEN * VESTED_PERCENT / 100;
             
     // Hut34 retains 50% of tokens (70% - 20% vested tokens) 
     uint public constant RETAINED_TOKENS = TOKEN * TOTAL_TOKENS / 2;
@@ -488,7 +486,7 @@ contract Hut34ICO is
     uint public constant END_DATE = START_DATE + 35 days;
 
     // Divides `etherRaised` to calculate commision
-    // etherRaise/6.66... == etherRaised * 1.5% / 100
+    // etherRaised/6.66... == etherRaised * 1.5% / 100
     uint public constant COMMISSION_DIV = 67;
 
     // Developer commission wallet
@@ -505,7 +503,7 @@ contract Hut34ICO is
         // Run sanity checks
         require(TOTAL_TOKENS != 0);
         require(OWNER != 0x0);
-        require(HUT34_ADDRESS != 0x0);
+        require(HUT34_RETAIN != 0x0);
         require(HUT34_WALLET != 0x0);
         require(PRESOLD_TOKENS <= WHOLESALE_TOKENS);
         require(PRESOLD_TOKENS == 0 || PRESOLD_ADDRESS != 0x0);
@@ -530,18 +528,18 @@ contract Hut34ICO is
         etherRaised = PRESALE_ETH_RAISE;
 
         // Mint the total supply into Hut34 token holding address
-        balances[HUT34_ADDRESS] = totalSupply;
-        Transfer(0x0, HUT34_ADDRESS, totalSupply);
+        balances[HUT34_RETAIN] = totalSupply;
+        Transfer(0x0, HUT34_RETAIN, totalSupply);
 
         // Transfer vested tokens from holding wallet to vesting pseudo-address
-        balances[HUT34_ADDRESS] = balances[HUT34_ADDRESS].sub(VESTED_TOKENS);
+        balances[HUT34_RETAIN] = balances[HUT34_RETAIN].sub(VESTED_TOKENS);
         balances[HUT34_VEST_ADDR] = balances[HUT34_VEST_ADDR].add(VESTED_TOKENS);
-        Transfer(HUT34_ADDRESS, HUT34_VEST_ADDR, VESTED_TOKENS);
+        Transfer(HUT34_RETAIN, HUT34_VEST_ADDR, VESTED_TOKENS);
 
         // Transfer presold tokens to holding address;
-        balances[HUT34_ADDRESS] = balances[HUT34_ADDRESS].sub(presold);
+        balances[HUT34_RETAIN] = balances[HUT34_RETAIN].sub(presold);
         balances[PRESOLD_ADDRESS] = balances[PRESOLD_ADDRESS].add(presold);
-        Transfer(HUT34_ADDRESS, PRESOLD_ADDRESS, presold);
+        Transfer(HUT34_RETAIN, PRESOLD_ADDRESS, presold);
     }
 
     // Default function. Accepts payments during funding period
@@ -569,7 +567,8 @@ contract Hut34ICO is
     function fundRaised() public view returns (bool)
     {
         return !fundFailed()
-            && etherRaised >= MIN_CAP;
+            && etherRaised >= MIN_CAP
+            && now > START_DATE;
     }
 
     // Returns wholesale value in wei
@@ -675,7 +674,7 @@ contract Hut34ICO is
         require(tokens > 0);
 
         // Prevent over subscribing 
-        require(balances[HUT34_ADDRESS] - tokens >= RETAINED_TOKENS);
+        require(balances[HUT34_RETAIN] - tokens >= RETAINED_TOKENS);
 
         // Adjust wholesale tokens left for sale
         if (wholesaleTokens != 0) {
@@ -683,9 +682,9 @@ contract Hut34ICO is
         }
         
         // transfer tokens from fund wallet
-        balances[HUT34_ADDRESS] = balances[HUT34_ADDRESS].sub(tokens);
+        balances[HUT34_RETAIN] = balances[HUT34_RETAIN].sub(tokens);
         balances[_addr] = balances[_addr].add(tokens);
-        Transfer(HUT34_ADDRESS, _addr, tokens);
+        Transfer(HUT34_RETAIN, _addr, tokens);
 
         // Update funds raised
         etherRaised = etherRaised.add(msg.value);
@@ -694,9 +693,9 @@ contract Hut34ICO is
         etherContributed[_addr] = etherContributed[_addr].add(msg.value);
 
         // Check KYC requirement
-        if(etherContributed[_addr] > KYC_THRESHOLD && !mustKyc[_addr]) {
+        if(etherContributed[_addr] >= KYC_THRESHOLD && !mustKyc[_addr]) {
             mustKyc[_addr] = true;
-            MustKyc(_addr);
+            Kyc(_addr, true);
         }
 
         return true;
@@ -743,7 +742,7 @@ contract Hut34ICO is
         uint len = _addrs.length;
         for(uint i; i < len; i++) {
             delete mustKyc[_addrs[i]];
-            ClearedKyc(_addrs[i]);
+            Kyc(_addrs[i], false);
         }
         return true;
     }
@@ -756,7 +755,7 @@ contract Hut34ICO is
         require(now > nextReleaseDate);
         VestingReleased(nextReleaseDate);
         nextReleaseDate = nextReleaseDate.add(VESTING_PERIOD);
-        return xfer(HUT34_VEST_ADDR, HUT34_WALLET, VESTED_TOKENS / 4);
+        return xfer(HUT34_VEST_ADDR, HUT34_RETAIN, VESTED_TOKENS / 4);
     }
 
     // Direct refund to caller
@@ -764,7 +763,7 @@ contract Hut34ICO is
         public
         returns (bool)
     {
-        address[] memory addrs;
+        address[] memory addrs = new address[](1);
         addrs[0] = msg.sender;
         return refundFor(addrs);
     }
@@ -786,18 +785,19 @@ contract Hut34ICO is
             addr = _addrs[i];
             value = etherContributed[addr];
             tokens = balances[addr];
+            if (tokens > 0) {    
+                // Return tokens
+                // transfer tokens from fund wallet
+                balances[HUT34_RETAIN] = balances[HUT34_RETAIN].add(tokens);
+                delete(balances[addr]);
+                Transfer(addr, HUT34_RETAIN, tokens);
+            }
     
-            // Return tokens
-            // transfer tokens from fund wallet
-            balances[HUT34_ADDRESS] = balances[HUT34_ADDRESS].add(tokens);
-            delete(balances[addr]);
-            Transfer(addr, HUT34_ADDRESS, tokens);
-    
-            delete etherContributed[addr];
-    
-            Refunded(addr, value);
             if (value > 0) {
+                // Refund ether contribution
+                delete etherContributed[addr];
                 refunded = refunded.add(value);
+                Withdrawal(this, addr, value);
                 addr.transfer(value);
             }
         }
@@ -882,6 +882,13 @@ contract Hut34ICO is
     {
         require(!__abortFuse);
         require(refunded == (etherRaised - PRESALE_ETH_RAISE));
+        // Log burned tokens for complete ledger accounting on archival nodes
+        Transfer(HUT34_RETAIN, 0x0, balances[HUT34_RETAIN]);
+        Transfer(HUT34_VEST_ADDR, 0x0, VESTED_TOKENS);
+        Transfer(PRESOLD_ADDRESS, 0x0, PRESOLD_TOKENS);
+        // Garbage collect mapped state
+        delete balances[HUT34_RETAIN];
+        delete balances[PRESOLD_ADDRESS];
         selfdestruct(owner);
     }
     
@@ -903,6 +910,7 @@ contract Hut34ICO is
         returns(uint)
     {
         uint commission = (this.balance + PRESALE_ETH_RAISE) / COMMISSION_DIV;
+        // Edge case that prefund causes commission to be greater than balance
         return commission <= this.balance ? commission : this.balance;
     }
 }
