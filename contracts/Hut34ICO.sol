@@ -1,8 +1,8 @@
 /*
 file:   Hut34ICO.sol
-ver:    0.2.0
+ver:    0.2.1
 author: Darryl Morris
-date:   24-Oct-2017
+date:   27-Oct-2017
 email:  o0ragman0o AT gmail.com
 (c) Darryl Morris 2017
 
@@ -19,6 +19,12 @@ See MIT Licence for further details.
 
 Release Notes
 -------------
+* renamed HUT34_ADDRESS to HUT34_RETAIN
+* fixed refund array bug
+* cleaned up refund garbage collection
+* better full ledger cleanup on destroy
+* Using Withdrawal() event instead of Refunded()
+* removed Refunded() event
 */
 
 
