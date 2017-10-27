@@ -136,7 +136,7 @@ Parameters are:
 
 * `address OWNER: 0xdA3780Cff2aE3a59ae16eC1734DEec77a7fd8db2`
 * `address HUT34_ADDRESS: 0x048Fcbf47a382fB26ADdF6e0Cb7B163D540e2E36`
-* `address HUT34_WALLET: TBD`
+* `address HUT34_RETAIN: 0x3135F4acA3C1Ad4758981500f8dB20EbDc5A1caB`
 * `address PRESOLD_ADDRESS: 0x6BF708eF2C1FDce3603c04CE9547AA6E134093b6`
 * `address HUT34_VEST_ADDR: 0x48757433342056657374696e6700000000000000`
     NB: Is a pseudo-address cast from the string "Hut34 Vesting"
@@ -146,8 +146,8 @@ Parameters are:
 * `uint MIN_CAP: 3000 ether`
 * `uint VESTED_PERCENT: 20%`
 * `uint VESTING_PERIOD: 26 weeks`
-* `uint PRESOLD_TOKENS: TBD`
-* `uint PRESALE_ETH_RAISE: TBD`
+* `uint PRESOLD_TOKENS: 1817500`
+* `uint PRESALE_ETH_RAISE: 2190 ether`
 
 **Token/Ether Purchase Rates**
 
@@ -181,18 +181,17 @@ contract Hut34Config
     // Total supply (* in unit ENT *)
     uint    public constant TOTAL_TOKENS    = 100000000;
 
-    // Contract owner.
+    // Contract owner at time of deployment.
     address public constant OWNER           = 0xdA3780Cff2aE3a59ae16eC1734DEec77a7fd8db2;
 
     // + new Date("00:00 2 November 2017 utc")/1000
     uint    public constant START_DATE      = 1509580800;
 
     // A Hut34 address to own tokens
-    address public constant HUT34_ADDRESS   = 0x048Fcbf47a382fB26ADdF6e0Cb7B163D540e2E36;
+    address public constant HUT34_RETAIN    = 0x3135F4acA3C1Ad4758981500f8dB20EbDc5A1caB;
     
-// TODO: configure actual address. To use Gnosis Multisig
     // A Hut34 address to accept raised funds
-    address public constant HUT34_WALLET    = 0x2;
+    address public constant HUT34_WALLET    = 0xA70d04dC4a64960c40CD2ED2CDE36D76CA4EDFaB;
     
     // Percentage of tokens to be vested over 2 years. 20%
     uint    public constant VESTED_PERCENT  = 20;
@@ -214,14 +213,12 @@ contract Hut34Config
     // Number of tokens up for wholesale purchasers (* in unit ENT *)
     uint    public constant WHOLESALE_TOKENS = 12500000;
 
-// TODO: Hut34 to advise number of presold tokens
     // Tokens sold to prefunders (* in unit ENT *)
-    uint    public constant PRESOLD_TOKENS  = 0;
+    uint    public constant PRESOLD_TOKENS  = 1817500;
     
-// TODO: Hut34 to provide presale ether raised.
     // Presale ether is estimateed from fiat raised prior to ICO at the ETH/AUD
     // rate at the time of contract deployment
-    uint    public constant PRESALE_ETH_RAISE = 0 * 1 ether;
+    uint    public constant PRESALE_ETH_RAISE = 2190 * 1 ether;
     
     // Address holding presold tokens to be distributed after ICO
     address public constant PRESOLD_ADDRESS = 0x6BF708eF2C1FDce3603c04CE9547AA6E134093b6;
@@ -251,13 +248,13 @@ contract Hut34Config
 ```
 ### Hut34ICOAbstract
 
-#### Conditional Entry Table
+## Conditional Entry Table
 
 Functions must throw on F conditions
 
 Renetry prevention is on all public mutating functions
-Reentry mutex set in finalizeICO(), refundFor()
-```
+Reentry mutex set in finalizeICO(), externalXfer(), refund()
+
 |function                |<startDate |<endDate  |fundFailed  |fundRaised|icoSucceeded
 |------------------------|:---------:|:--------:|:----------:|:--------:|:---------:|
 |()                      |F          |T         |F           |T         |F          |
@@ -265,7 +262,6 @@ Reentry mutex set in finalizeICO(), refundFor()
 |proxyPurchase()         |F          |T         |F           |T         |F          |
 |finalizeICO()           |F          |F         |F           |T         |T          |
 |refund()                |F          |F         |T           |F         |F          |
-|refundFor()             |F          |F         |T           |F         |F          |
 |transfer()              |F          |F         |F           |F         |T          |
 |transferFrom()          |F          |F         |F           |F         |T          |
 |transferToMany()        |F          |F         |F           |F         |T          |
@@ -277,7 +273,8 @@ Reentry mutex set in finalizeICO(), refundFor()
 |transferExternalTokens()|T          |T         |T           |T         |T          |
 |destroy()               |F          |F         |!__abortFuse|F         |F          |
 
-
+\*----------------------------------------------------------------------------*/
+```
 contract Hut34ICOAbstract
 {
     /// @dev Logged upon receiving a deposit
@@ -291,11 +288,6 @@ contract Hut34ICOAbstract
     /// @param _value The value in ether which was withdrawn
     event Withdrawal(address indexed _from, address indexed _to, uint _value);
 
-    /// @dev Logged upon refund
-    /// @param _to Address to which value was sent
-    /// @param _value The value in ether which was withdrawn
-    event Refunded(address indexed _to, uint _value);
-    
     /// @dev Logged when new owner accepts ownership
     /// @param _from the old owner address
     /// @param _to the new owner address
@@ -306,13 +298,10 @@ contract Hut34ICOAbstract
     event ChangeOwnerTo(address indexed _to);
     
     /// @dev Logged when a funder exceeds the KYC limit
-    /// @param _addr The address that must clear KYC before tokens are unlocked
-    event MustKyc(address indexed _addr);
-    
-    /// @dev Logged when a KYC flag is cleared against an address
-    /// @param _addr The addres which has had KYC clearance
-    event ClearedKyc(address indexed _addr);
-    
+    /// @param _addr Address to set or clear KYC flag
+    /// @param _kyc A boolean flag
+    event Kyc(address indexed _addr, bool _kyc);
+
     /// @dev Logged when vested tokens are released back to HUT32_WALLET
     /// @param _releaseDate The official release date (even if released at
     /// later date)
@@ -416,6 +405,7 @@ contract Hut34ICOAbstract
     /// @param _amounts An array of amounts to transfer to respective addresses
     /// @return Boolean success value
     function transferToMany(address[] _addrs, uint[] _amounts)
+        public returns (bool);
 
     /// @notice Release vested tokens after a maturity date
     /// @return Boolean success value
@@ -441,5 +431,4 @@ contract Hut34ICOAbstract
     function transferExternalToken(address _kAddr, address _to, uint _amount)
         public returns (bool);
 }
-
 ```

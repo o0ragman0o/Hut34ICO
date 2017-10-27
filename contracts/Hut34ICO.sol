@@ -1,6 +1,6 @@
 /*
 file:   Hut34ICO.sol
-ver:    0.2.1
+ver:    0.2.2
 author: Darryl Morris
 date:   27-Oct-2017
 email:  o0ragman0o AT gmail.com
@@ -19,12 +19,10 @@ See MIT Licence for further details.
 
 Release Notes
 -------------
-* renamed HUT34_ADDRESS to HUT34_RETAIN
-* fixed refund array bug
-* cleaned up refund garbage collection
-* better full ledger cleanup on destroy
-* Using Withdrawal() event instead of Refunded()
-* removed Refunded() event
+* Deployment parameters audited and locked in
+* Fixed wholesale funding bug that allowed wholesale funds before START_DATE
+* Firmed requirments to proxyPurchase()
+
 */
 
 
@@ -53,7 +51,6 @@ contract Hut34Config
     // A Hut34 address to own tokens
     address public constant HUT34_RETAIN    = 0x3135F4acA3C1Ad4758981500f8dB20EbDc5A1caB;
     
-// TODO: configure actual address. To use Gnosis Multisig
     // A Hut34 address to accept raised funds
     address public constant HUT34_WALLET    = 0xA70d04dC4a64960c40CD2ED2CDE36D76CA4EDFaB;
     
@@ -77,14 +74,12 @@ contract Hut34Config
     // Number of tokens up for wholesale purchasers (* in unit ENT *)
     uint    public constant WHOLESALE_TOKENS = 12500000;
 
-// TODO: Hut34 to advise number of presold tokens
     // Tokens sold to prefunders (* in unit ENT *)
-    uint    public constant PRESOLD_TOKENS  = 0;
+    uint    public constant PRESOLD_TOKENS  = 1817500;
     
-// TODO: Hut34 to provide presale ether raised.
     // Presale ether is estimateed from fiat raised prior to ICO at the ETH/AUD
     // rate at the time of contract deployment
-    uint    public constant PRESALE_ETH_RAISE = 0 * 1 ether;
+    uint    public constant PRESALE_ETH_RAISE = 2190 * 1 ether;
     
     // Address holding presold tokens to be distributed after ICO
     address public constant PRESOLD_ADDRESS = 0x6BF708eF2C1FDce3603c04CE9547AA6E134093b6;
@@ -284,6 +279,7 @@ Reentry mutex set in finalizeICO(), externalXfer(), refund()
 |proxyPurchase()         |F          |T         |F           |T         |F          |
 |finalizeICO()           |F          |F         |F           |T         |T          |
 |refund()                |F          |F         |T           |F         |F          |
+|refundFor()             |F          |F         |T           |F         |F          |
 |transfer()              |F          |F         |F           |F         |T          |
 |transferFrom()          |F          |F         |F           |F         |T          |
 |transferToMany()        |F          |F         |F           |F         |T          |
@@ -310,11 +306,6 @@ contract Hut34ICOAbstract
     /// @param _value The value in ether which was withdrawn
     event Withdrawal(address indexed _from, address indexed _to, uint _value);
 
-    /// @dev Logged upon refund
-    /// @param _to Address to which value was sent
-    /// @param _value The value in ether which was withdrawn
-    event Refunded(address indexed _to, uint _value);
-    
     /// @dev Logged when new owner accepts ownership
     /// @param _from the old owner address
     /// @param _to the new owner address
@@ -554,7 +545,7 @@ contract Hut34ICO is
         payable
     {
         // Pass through to purchasing function. Will throw on failed or
-        // successful ITO
+        // successful ICO
         proxyPurchase(msg.sender);
     }
 
@@ -562,7 +553,7 @@ contract Hut34ICO is
 // Getters
 //
 
-    // ITO fails if aborted or minimum funds are not raised by the end date
+    // ICO fails if aborted or minimum funds are not raised by the end date
     function fundFailed() public view returns (bool)
     {
         return !__abortFuse
@@ -611,12 +602,16 @@ contract Hut34ICO is
         // Get wholesale portion of ether and tokens
         uint wsValueLeft = 1 ether * wholesaleLeft / RATE_WHOLESALE;
         uint wholesaleSpend = 
-            // No wholesale purchse
-            _wei < WHOLESALE_THRESHOLD ? 0 :
-            // Total wholesale purchase
-            _wei < wsValueLeft ?  _wei :
-            // over funded for remaining wholesale tokens
-            wsValueLeft;
+                fundFailed() ? 0 :
+                icoSucceeded ? 0 :
+                now < START_DATE ? 0 :
+                now > END_DATE ? 0 :
+                // No wholesale purchse
+                _wei < WHOLESALE_THRESHOLD ? 0 :
+                // Total wholesale purchase
+                _wei < wsValueLeft ?  _wei :
+                // over funded for remaining wholesale tokens
+                wsValueLeft;
         
         wholesaleTokens_ = wholesaleSpend
                 .mul(RATE_WHOLESALE)
@@ -664,6 +659,8 @@ contract Hut34ICO is
     {
         require(!fundFailed());
         require(!icoSucceeded);
+        require(now > START_DATE);
+        require(now <= END_DATE);
         require(msg.value > 0);
         
         // Log ether deposit
