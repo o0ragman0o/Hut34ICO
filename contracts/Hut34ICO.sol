@@ -1,5 +1,5 @@
 /*
-file:   Hut34ICO.sol
+file:   Hut34TS.sol
 ver:    0.2.4_deploy
 author: Darryl Morris
 date:   27-Oct-2017
@@ -13,7 +13,7 @@ License
 -------
 This software is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 See MIT Licence for further details.
 <https://opensource.org/licenses/MIT>.
 
@@ -37,7 +37,7 @@ contract Hut34Config
 {
     // ERC20 token name
     string  public constant name            = "Hut34 Entropy";
-    
+
     // ERC20 trading symbol
     string  public constant symbol          = "ENT";
 
@@ -55,10 +55,10 @@ contract Hut34Config
 
     // A Hut34 address to own tokens
     address public constant HUT34_RETAIN    = 0x3135F4acA3C1Ad4758981500f8dB20EbDc5A1caB;
-    
+
     // A Hut34 address to accept raised funds
     address public constant HUT34_WALLET    = 0xA70d04dC4a64960c40CD2ED2CDE36D76CA4EDFaB;
-    
+
     // Percentage of tokens to be vested over 2 years. 20%
     uint    public constant VESTED_PERCENT  = 20;
 
@@ -75,20 +75,20 @@ contract Hut34Config
     // A minimum amount of ether funding before the concierge rate is applied
     // to tokens
     uint    public constant WHOLESALE_THRESHOLD  = 150 * 1 ether;
-    
+
     // Number of tokens up for wholesale purchasers (* in unit ENT *)
     uint    public constant WHOLESALE_TOKENS = 12500000;
 
     // Tokens sold to prefunders (* in unit ENT *)
-    uint    public constant PRESOLD_TOKENS  = 1817500;
-    
-    // Presale ether is estimateed from fiat raised prior to ICO at the ETH/AUD
+    uint    public constant PRESOLD_TOKENS  = 2246500;
+
+    // Presale ether is estimateed from fiat raised prior to TS at the ETH/AUD
     // rate at the time of contract deployment
-    uint    public constant PRESALE_ETH_RAISE = 2190 * 1 ether;
-    
-    // Address holding presold tokens to be distributed after ICO
+    uint    public constant PRESALE_ETH_RAISE = 2807 * 1 ether;
+
+    // Address holding presold tokens to be distributed after TS
     address public constant PRESOLD_ADDRESS = 0x6BF708eF2C1FDce3603c04CE9547AA6E134093b6;
-    
+
     // wholesale rate for purchases over WHOLESALE_THRESHOLD ether
     uint    public constant RATE_WHOLESALE  = 1000;
 
@@ -120,19 +120,19 @@ library SafeMath
         c = a + b;
         assert(c >= a);
     }
-    
+
     // a subtract b
     function sub(uint a, uint b) internal pure returns (uint c) {
         c = a - b;
         assert(c <= a);
     }
-    
+
     // a multiplied by b
     function mul(uint a, uint b) internal pure returns (uint c) {
         c = a * b;
         assert(a == 0 || c / a == b);
     }
-    
+
     // a divided by b
     function div(uint a, uint b) internal pure returns (uint c) {
         assert(b != 0);
@@ -169,16 +169,16 @@ contract ERC20Token
 /* Constants */
 
     // none
-    
+
 /* State variable */
 
     /// @return The Total supply of tokens
     uint public totalSupply;
-    
+
     /// @return Tokens owned by an address
     mapping (address => uint) balances;
-    
-    /// @return Tokens spendable by a thridparty
+
+    /// @return Tokens spendable by a thirdparty
     mapping (address => mapping (address => uint)) allowed;
 
 /* Events */
@@ -198,10 +198,10 @@ contract ERC20Token
 /* Modifiers */
 
     // none
-    
+
 /* Functions */
 
-    // Using an explicit getter allows for function overloading    
+    // Using an explicit getter allows for function overloading
     function balanceOf(address _addr)
         public
         view
@@ -209,8 +209,8 @@ contract ERC20Token
     {
         return balances[_addr];
     }
-    
-    // Using an explicit getter allows for function overloading    
+
+    // Using an explicit getter allows for function overloading
     function allowance(address _owner, address _spender)
         public
         constant
@@ -233,7 +233,7 @@ contract ERC20Token
         returns (bool)
     {
         require(_amount <= allowed[_from][msg.sender]);
-        
+
         allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_amount);
         return xfer(_from, _to, _amount);
     }
@@ -246,13 +246,13 @@ contract ERC20Token
         require(_amount <= balances[_from]);
 
         Transfer(_from, _to, _amount);
-        
+
         // avoid wasting gas on 0 token transfers
         if(_amount == 0) return true;
-        
+
         balances[_from] = balances[_from].sub(_amount);
         balances[_to]   = balances[_to].add(_amount);
-        
+
         return true;
     }
 
@@ -275,14 +275,14 @@ contract ERC20Token
 Functions must throw on F conditions
 
 Renetry prevention is on all public mutating functions
-Reentry mutex set in finalizeICO(), externalXfer(), refund()
+Reentry mutex set in finalizeTS(), externalXfer(), refund()
 
-|function                |<startDate |<endDate  |fundFailed  |fundRaised|icoSucceeded
+|function                |<startDate |<endDate  |fundFailed  |fundRaised|tsSucceeded
 |------------------------|:---------:|:--------:|:----------:|:--------:|:---------:|
 |()                      |F          |T         |F           |T         |F          |
 |abort()                 |T          |T         |T           |T         |F          |
 |proxyPurchase()         |F          |T         |F           |T         |F          |
-|finalizeICO()           |F          |F         |F           |T         |T          |
+|finalizeTS()           |F          |F         |F           |T         |T          |
 |refund()                |F          |F         |T           |F         |F          |
 |refundFor()             |F          |F         |T           |F         |F          |
 |transfer()              |F          |F         |F           |F         |T          |
@@ -298,13 +298,13 @@ Reentry mutex set in finalizeICO(), externalXfer(), refund()
 
 \*----------------------------------------------------------------------------*/
 
-contract Hut34ICOAbstract
+contract Hut34TSAbstract
 {
     /// @dev Logged upon receiving a deposit
     /// @param _from The address from which value has been recieved
     /// @param _value The value of ether received
     event Deposit(address indexed _from, uint _value);
-    
+
     /// @dev Logged upon a withdrawal
     /// @param _from the address of the withdrawer
     /// @param _to Address to which value was sent
@@ -315,11 +315,11 @@ contract Hut34ICOAbstract
     /// @param _from the old owner address
     /// @param _to the new owner address
     event ChangedOwner(address indexed _from, address indexed _to);
-    
+
     /// @dev Logged when owner initiates a change of ownership
     /// @param _to the new owner address
     event ChangeOwnerTo(address indexed _to);
-    
+
     /// @dev Logged when a funder exceeds the KYC limit
     /// @param _addr Address to set or clear KYC flag
     /// @param _kyc A boolean flag
@@ -329,7 +329,7 @@ contract Hut34ICOAbstract
     /// @param _releaseDate The official release date (even if released at
     /// later date)
     event VestingReleased(uint _releaseDate);
-    
+
     /// @dev Logged if the contract is aborted
     event Aborted();
 
@@ -350,16 +350,16 @@ contract Hut34ICOAbstract
     /// @dev This fuse blows upon calling abort() which forces a fail state
     /// @return the abort state. true == not aborted
     bool public __abortFuse = true;
-    
+
     /// @dev Sets to true after the fund is swept to the fund wallet, allows
     /// token transfers and prevents abort()
-    /// @return final success state of ICO
-    bool public icoSucceeded;
+    /// @return final success state of TS
+    bool public tsSucceeded;
 
     /// @dev An address permissioned to enact owner restricted functions
     /// @return owner
     address public owner;
-    
+
     /// @dev An address permissioned to take ownership of the contract
     /// @return new owner address
     address public newOwner;
@@ -367,19 +367,19 @@ contract Hut34ICOAbstract
     /// @dev A tally of total ether raised during the funding period
     /// @return Total ether raised during funding
     uint public etherRaised;
-    
+
     /// @return Wholesale tokens available for sale
     uint public wholesaleLeft;
-    
+
     /// @return Total ether refunded. Used to permision call to `destroy()`
     uint public refunded;
-    
+
     /// @returns Date of next vesting release
     uint public nextReleaseDate;
 
     /// @return Ether paid by an address
     mapping (address => uint) public etherContributed;
-    
+
     /// @returns KYC flag for an address
     mapping (address => bool) public mustKyc;
 
@@ -398,14 +398,14 @@ contract Hut34ICOAbstract
 
     /// @return `true` if MIN_FUNDS were raised
     function fundRaised() public view returns (bool);
-    
-    /// @return `true` if MIN_FUNDS were not raised before END_DATE or contract 
+
+    /// @return `true` if MIN_FUNDS were not raised before END_DATE or contract
     /// has been aborted
     function fundFailed() public view returns (bool);
 
     /// @return The current retail rate for token purchase
     function currentRate() public view returns (uint);
-    
+
     /// @param _wei A value of ether in units of wei
     /// @return allTokens_ returnable tokens for the funding amount
     /// @return wholesaleToken_ Number of tokens purchased at wholesale rate
@@ -418,14 +418,14 @@ contract Hut34ICOAbstract
     /// @dev Requires <150,000 gas
     function proxyPurchase(address _addr) public payable returns (bool);
 
-    /// @notice Finalize the ICO and transfer funds
+    /// @notice Finalize the TS and transfer funds
     /// @return Boolean success value
-    function finalizeICO() public returns (bool);
+    function finalizeTS() public returns (bool);
 
     /// @notice Clear the KYC flags for an array of addresses to allow tokens
     /// transfers
     function clearKyc(address[] _addrs) public returns (bool);
-    
+
     /// @notice Make bulk transfer of tokens to many addresses
     /// @param _addrs An array of recipient addresses
     /// @param _amounts An array of amounts to transfer to respective addresses
@@ -437,16 +437,16 @@ contract Hut34ICOAbstract
     /// @return Boolean success value
     function releaseVested() public returns (bool);
 
-    /// @notice Claim refund on failed ICO
+    /// @notice Claim refund on failed TS
     /// @return Boolean success value
     function refund() public returns (bool);
-    
-    /// @notice Push refund for `_addr` from failed ICO
+
+    /// @notice Push refund for `_addr` from failed TS
     /// @param _addrs An array of address to refund
     /// @return Boolean success value
     function refundFor(address[] _addrs) public returns (bool);
 
-    /// @notice Abort the token sale prior to finalizeICO() 
+    /// @notice Abort the token sale prior to finalizeTS()
     function abort() public returns (bool);
 
     /// @notice Salvage `_amount` tokens at `_kaddr` and send them to `_to`
@@ -461,14 +461,14 @@ contract Hut34ICOAbstract
 
 /*-----------------------------------------------------------------------------\
 
- Hut34ICO implimentation
+ Hut34TS implimentation
 
 \*----------------------------------------------------------------------------*/
 
-contract Hut34ICO is 
+contract Hut34TS is
     ReentryProtected,
     ERC20Token,
-    Hut34ICOAbstract,
+    Hut34TSAbstract,
     Hut34Config
 {
     using SafeMath for uint;
@@ -478,13 +478,13 @@ contract Hut34ICO is
 //
 
     // Token fixed point for decimal places
-    uint constant TOKEN = uint(10)**decimals; 
+    uint constant TOKEN = uint(10)**decimals;
 
     // Calculate vested tokens
     uint public constant VESTED_TOKENS =
             TOTAL_TOKENS * TOKEN * VESTED_PERCENT / 100;
-            
-    // Hut34 retains 50% of tokens (70% - 20% vested tokens) 
+
+    // Hut34 retains 50% of tokens (70% - 20% vested tokens)
     uint public constant RETAINED_TOKENS = TOKEN * TOTAL_TOKENS / 2;
 
     // Calculate end date
@@ -495,14 +495,14 @@ contract Hut34ICO is
     uint public constant COMMISSION_DIV = 67;
 
     // Developer commission wallet
-    address public constant COMMISSION_WALLET = 
+    address public constant COMMISSION_WALLET =
         0x0065D506E475B5DBD76480bAFa57fe7C41c783af;
 
 //
 // Functions
 //
 
-    function Hut34ICO()
+    function Hut34TS()
         public
     {
         // Run sanity checks
@@ -522,7 +522,7 @@ contract Hut34ICO is
         require(RATE_DAY_7 >= RATE_DAY_14);
         require(RATE_DAY_14 >= RATE_DAY_21);
         require(RATE_DAY_21 >= RATE_DAY_28);
-        
+
         owner = OWNER;
         totalSupply = TOTAL_TOKENS.mul(TOKEN);
         wholesaleLeft = WHOLESALE_TOKENS.mul(TOKEN);
@@ -553,7 +553,7 @@ contract Hut34ICO is
         payable
     {
         // Pass through to purchasing function. Will throw on failed or
-        // successful ICO
+        // successful TS
         proxyPurchase(msg.sender);
     }
 
@@ -561,13 +561,13 @@ contract Hut34ICO is
 // Getters
 //
 
-    // ICO fails if aborted or minimum funds are not raised by the end date
+    // TS fails if aborted or minimum funds are not raised by the end date
     function fundFailed() public view returns (bool)
     {
         return !__abortFuse
             || (now > END_DATE && etherRaised < MIN_CAP);
     }
-    
+
     // Funding succeeds if not aborted, minimum funds are raised before end date
     function fundRaised() public view returns (bool)
     {
@@ -589,7 +589,7 @@ contract Hut34ICO is
     {
         return
             fundFailed() ? 0 :
-            icoSucceeded ? 0 :
+            tsSucceeded ? 0 :
             now < START_DATE ? 0 :
             now < START_DATE + 1 days ? RATE_DAY_0 :
             now < START_DATE + 7 days ? RATE_DAY_1 :
@@ -599,7 +599,7 @@ contract Hut34ICO is
             now < END_DATE ? RATE_DAY_28 :
             0;
     }
-    
+
     // Calculates the sale and wholesale portion of tokens for a given value
     // of wei at the time of calling.
     function ethToTokens(uint _wei)
@@ -609,9 +609,9 @@ contract Hut34ICO is
     {
         // Get wholesale portion of ether and tokens
         uint wsValueLeft = wholeSaleValueLeft();
-        uint wholesaleSpend = 
+        uint wholesaleSpend =
                 fundFailed() ? 0 :
-                icoSucceeded ? 0 :
+                tsSucceeded ? 0 :
                 now < START_DATE ? 0 :
                 now > END_DATE ? 0 :
                 // No wholesale purchse
@@ -620,7 +620,7 @@ contract Hut34ICO is
                 _wei < wsValueLeft ?  _wei :
                 // over funded for remaining wholesale tokens
                 wsValueLeft;
-        
+
         wholesaleTokens_ = wholesaleSpend
                 .mul(RATE_WHOLESALE)
                 .mul(TOKEN)
@@ -629,7 +629,7 @@ contract Hut34ICO is
         // Remaining wei used to purchase retail tokens
         _wei = _wei.sub(wholesaleSpend);
 
-        // Get retail rate        
+        // Get retail rate
         uint saleRate = currentRate();
 
         allTokens_ = _wei
@@ -640,10 +640,10 @@ contract Hut34ICO is
     }
 
 //
-// ICO functions
+// TS functions
 //
 
-    // The fundraising can be aborted any time before `finaliseICO()` is called.
+    // The fundraising can be aborted any time before `finaliseTS()` is called.
     // This will force a fail state and allow refunds to be collected.
     // The owner can abort or anyone else if a successful fund has not been
     // finalised before 7 days after the end date.
@@ -652,13 +652,13 @@ contract Hut34ICO is
         noReentry
         returns (bool)
     {
-        require(!icoSucceeded);
+        require(!tsSucceeded);
         require(msg.sender == owner || now > END_DATE  + 14 days);
         delete __abortFuse;
         Aborted();
         return true;
     }
-    
+
     // General addresses can purchase tokens during funding
     function proxyPurchase(address _addr)
         public
@@ -667,14 +667,14 @@ contract Hut34ICO is
         returns (bool)
     {
         require(!fundFailed());
-        require(!icoSucceeded);
+        require(!tsSucceeded);
         require(now > START_DATE);
         require(now <= END_DATE);
         require(msg.value > 0);
-        
+
         // Log ether deposit
         Deposit (_addr, msg.value);
-        
+
         // Get ether to token conversion
         uint tokens;
         // Portion of tokens sold at wholesale rate
@@ -685,14 +685,14 @@ contract Hut34ICO is
         // Block any failed token creation
         require(tokens > 0);
 
-        // Prevent over subscribing 
+        // Prevent over subscribing
         require(balances[HUT34_RETAIN] - tokens >= RETAINED_TOKENS);
 
         // Adjust wholesale tokens left for sale
         if (wholesaleTokens != 0) {
             wholesaleLeft = wholesaleLeft.sub(wholesaleTokens);
         }
-        
+
         // transfer tokens from fund wallet
         balances[HUT34_RETAIN] = balances[HUT34_RETAIN].sub(tokens);
         balances[_addr] = balances[_addr].add(tokens);
@@ -712,12 +712,12 @@ contract Hut34ICO is
 
         return true;
     }
-    
+
     // Owner can sweep a successful funding to the fundWallet.
     // Can be called repeatedly to recover errant ether which may have been
     // `selfdestructed` to the contract
     // Contract can be aborted up until this returns `true`
-    function finalizeICO()
+    function finalizeTS()
         public
         onlyOwner
         preventReentry()
@@ -727,13 +727,13 @@ contract Hut34ICO is
         require(fundRaised());
 
         // Set first vesting date (only once as this function can be called again)
-        if(!icoSucceeded) {
+        if(!tsSucceeded) {
             nextReleaseDate = now + VESTING_PERIOD;
         }
 
         // Set success flag;
-        icoSucceeded = true;
-        
+        tsSucceeded = true;
+
         // Transfer % Developer commission
         uint devCommission = calcCommission();
         Withdrawal(this, COMMISSION_WALLET, devCommission);
@@ -779,8 +779,8 @@ contract Hut34ICO is
         addrs[0] = msg.sender;
         return refundFor(addrs);
     }
-    
-    // Bulk refunds can be pushed from a failed ICO
+
+    // Bulk refunds can be pushed from a failed TS
     function refundFor(address[] _addrs)
         public
         preventReentry()
@@ -792,19 +792,19 @@ contract Hut34ICO is
         uint value;
         uint tokens;
         address addr;
-        
+
         for (i; i < len; i++) {
             addr = _addrs[i];
             value = etherContributed[addr];
             tokens = balances[addr];
-            if (tokens > 0) {    
+            if (tokens > 0) {
                 // Return tokens
                 // transfer tokens from fund wallet
                 balances[HUT34_RETAIN] = balances[HUT34_RETAIN].add(tokens);
                 delete balances[addr];
                 Transfer(addr, HUT34_RETAIN, tokens);
             }
-    
+
             if (value > 0) {
                 // Refund ether contribution
                 delete etherContributed[addr];
@@ -834,27 +834,27 @@ contract Hut34ICO is
         }
         return true;
     }
-    
-    // Overload to check ICO success and KYC flags.
+
+    // Overload to check TS success and KYC flags.
     function xfer(address _from, address _to, uint _amount)
         internal
         noReentry
         returns (bool)
     {
-        require(icoSucceeded);
+        require(tsSucceeded);
         require(!mustKyc[_from]);
         super.xfer(_from, _to, _amount);
         return true;
     }
 
-    // Overload to require ICO success
+    // Overload to require TS success
     function approve(address _spender, uint _amount)
         public
         noReentry
         returns (bool)
     {
-        // ICO must be successful
-        require(icoSucceeded);
+        // TS must be successful
+        require(tsSucceeded);
         super.approve(_spender, _amount);
         return true;
     }
@@ -873,7 +873,7 @@ contract Hut34ICO is
         newOwner = _owner;
         return true;
     }
-    
+
     // Finalise change of ownership to newOwner
     function acceptOwnership()
         public
@@ -904,18 +904,18 @@ contract Hut34ICO is
         delete balances[PRESOLD_ADDRESS];
         selfdestruct(owner);
     }
-    
+
     // Owner can salvage ERC20 tokens that may have been sent to the account
     function transferExternalToken(address _kAddr, address _to, uint _amount)
         public
         onlyOwner
         preventReentry
-        returns (bool) 
+        returns (bool)
     {
         require(ERC20Token(_kAddr).transfer(_to, _amount));
         return true;
     }
-    
+
     // Calculate commission on prefunded and raised ether.
     function calcCommission()
         internal
